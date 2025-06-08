@@ -6,9 +6,8 @@
   <title>AfriChat - Firebase avec photo de profil</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script type="module">
-    // Import et initialisation Firebase
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
-    import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-database.js";
+    import { getDatabase, ref, push, onChildAdded, query, orderByChild } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBT4FsQ1DD3ZVtBKfImwTBb4bmgRCpWLYg",
@@ -22,11 +21,7 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-
-    window.db = db;
-    window.ref = ref;
-    window.push = push;
-    window.onChildAdded = onChildAdded;
+    window._firebase = { db, ref, push, onChildAdded, query, orderByChild };
   </script>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col">
@@ -43,161 +38,129 @@
 
   <!-- Chat -->
   <div id="main-app" class="hidden min-h-screen flex flex-col">
-    <!-- Header modernisé avec bouton déconnexion -->
     <div class="flex justify-between items-center bg-white p-4 border-b border-gray-200 rounded-b-2xl shadow">
       <div class="text-2xl font-bold text-transparent bg-clip-text" style="background-image: linear-gradient(135deg, #F9A72B, #58B44F);">AfriChat</div>
-      <button id="logout-btn" class="ml-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-red-400 hover:text-white transition-colors duration-300 font-semibold">
-        Déconnexion
-      </button>
+      <button id="logout-btn" class="ml-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-red-400 hover:text-white transition-colors duration-300 font-semibold">Déconnexion</button>
     </div>
 
-    <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-4"></div>
+    <!-- Messages -->
+    <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
 
-    <div class="p-4 bg-white border-t border-gray-200">
-      <div class="flex items-center">
-        <input id="messageInput" type="text" placeholder="Écrivez un message..." class="flex-1 mx-2 px-4 py-2 rounded-full border border-gray-300 focus:border-orange-500 focus:outline-none" disabled />
-        <button id="send-btn" class="p-2 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition-colors duration-300" disabled>Envoyer</button>
-      </div>
+    <!-- Input -->
+    <div class="p-4 bg-white border-t border-gray-200 flex items-center">
+      <input type="text" id="messageInput" placeholder="Écrivez un message..." class="flex-1 mx-2 px-4 py-2 rounded-full border border-gray-300 focus:border-orange-500 focus:outline-none" disabled />
+      <button id="send-btn" class="p-2 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition-colors duration-300" disabled>Envoyer</button>
     </div>
   </div>
 
   <script>
-    const loginPage = document.getElementById("login-page");
-    const mainApp = document.getElementById("main-app");
-    const usernameInput = document.getElementById("username-input");
-    const profilePicInput = document.getElementById("profile-pic-input");
-    const startChatBtn = document.getElementById("start-chat-btn");
-    const chatMessages = document.getElementById("chat-messages");
-    const messageInput = document.getElementById("messageInput");
-    const sendBtn = document.getElementById("send-btn");
-    const logoutBtn = document.getElementById("logout-btn");
+    document.addEventListener("DOMContentLoaded", () => {
+      const { db, ref, push, onChildAdded, query, orderByChild } = window._firebase;
 
-    let username = null;
-    let profilePicBase64 = null;
+      const loginPage = document.getElementById("login-page");
+      const mainApp = document.getElementById("main-app");
+      const usernameInput = document.getElementById("username-input");
+      const profilePicInput = document.getElementById("profile-pic-input");
+      const startChatBtn = document.getElementById("start-chat-btn");
+      const chatMessages = document.getElementById("chat-messages");
+      const messageInput = document.getElementById("messageInput");
+      const sendBtn = document.getElementById("send-btn");
+      const logoutBtn = document.getElementById("logout-btn");
 
-    // Fonction pour convertir une image en base64
-    function getBase64(file, callback) {
-      const reader = new FileReader();
-      reader.onload = () => callback(reader.result);
-      reader.readAsDataURL(file);
-    }
+      let username = null;
+      let profilePicBase64 = null;
+      let loaded = false;
 
-    startChatBtn.addEventListener("click", () => {
-      const name = usernameInput.value.trim();
-      if (!name) {
-        alert("Veuillez entrer un nom");
-        return;
+      function getBase64(file, callback) {
+        const reader = new FileReader();
+        reader.onload = () => callback(reader.result);
+        reader.readAsDataURL(file);
       }
-      if (!profilePicBase64) {
-        alert("Veuillez choisir une photo de profil");
-        return;
-      }
-      username = name;
-      // Stocker nom + photo en localStorage
-      localStorage.setItem("username", username);
-      localStorage.setItem("profilePic", profilePicBase64);
 
-      loginPage.classList.add("hidden");
-      mainApp.classList.remove("hidden");
-      messageInput.disabled = false;
-      sendBtn.disabled = false;
+      startChatBtn.addEventListener("click", () => {
+        const name = usernameInput.value.trim();
+        if (!name) return alert("Veuillez entrer un nom");
+        if (!profilePicBase64) return alert("Veuillez choisir une photo de profil");
 
-      loadMessages();
-    });
-
-    profilePicInput.addEventListener("change", () => {
-      const file = profilePicInput.files[0];
-      if (!file) return;
-      getBase64(file, (base64) => {
-        profilePicBase64 = base64;
+        username = name;
+        localStorage.setItem("username", username);
+        localStorage.setItem("profilePic", profilePicBase64);
+        loginPage.classList.add("hidden");
+        mainApp.classList.remove("hidden");
+        messageInput.disabled = false;
+        sendBtn.disabled = false;
+        if (!loaded) loadMessages();
       });
-    });
 
-    function loadMessages() {
-      const messagesRef = ref(db, "messages");
-      onChildAdded(messagesRef, snapshot => {
-        const msg = snapshot.val();
-        appendMessage(msg.name, msg.text, msg.timestamp, msg.profilePic);
+      profilePicInput.addEventListener("change", () => {
+        const file = profilePicInput.files[0];
+        if (file) getBase64(file, b64 => profilePicBase64 = b64);
       });
-    }
 
-    function appendMessage(name, text, timestamp, profilePic) {
-      const time = new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-      const isOwnMessage = name === username;
-      const align = isOwnMessage ? "justify-end text-right" : "justify-start text-left";
-      const bubble = isOwnMessage ? "bg-green-100 text-black" : "bg-white text-black";
-
-      const msg = document.createElement("div");
-      msg.className = `flex ${align} items-start gap-2`;
-
-      if (!isOwnMessage) {
-        if (profilePic) {
-          const img = document.createElement("img");
-          img.src = profilePic;
-          img.alt = name;
-          img.className = "w-8 h-8 rounded-full object-cover";
-          msg.appendChild(img);
-        } else {
-          const initial = name.charAt(0).toUpperCase();
-          const avatar = document.createElement("div");
-          avatar.className = "w-8 h-8 bg-orange-300 text-white flex items-center justify-center rounded-full font-bold";
-          avatar.textContent = initial;
-          msg.appendChild(avatar);
-        }
-      } else {
-        if (profilePicBase64) {
-          const img = document.createElement("img");
-          img.src = profilePicBase64;
-          img.alt = name;
-          img.className = "w-8 h-8 rounded-full object-cover";
-          msg.appendChild(img);
-        }
+      function loadMessages() {
+        loaded = true;
+        chatMessages.innerHTML = "";
+        const now = Date.now();
+        const messagesRef = query(ref(db, "messages"), orderByChild("timestamp"));
+        onChildAdded(messagesRef, snapshot => {
+          const msg = snapshot.val();
+          if (now - msg.timestamp <= 24 * 60 * 60 * 1000) {
+            appendMessage(msg.name, msg.text, msg.timestamp, msg.profilePic);
+          }
+        });
       }
 
-      const content = document.createElement("div");
-      const bubbleDiv = document.createElement("div");
-      bubbleDiv.className = `${bubble} px-4 py-2 rounded-lg shadow-md max-w-xs`;
-      bubbleDiv.innerHTML = `<p class="font-semibold">${name}</p><p>${text}</p>`;
+      function appendMessage(name, text, timestamp, profilePic) {
+        const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const isOwnMessage = name === username;
+        const align = isOwnMessage ? "justify-end text-right" : "justify-start text-left";
+        const bubble = isOwnMessage ? "bg-green-100" : "bg-white";
 
-      const timeP = document.createElement("p");
-      timeP.className = "text-xs text-gray-400 mt-1";
-      timeP.textContent = time;
+        const msg = document.createElement("div");
+        msg.className = `flex ${align} items-start gap-2`;
 
-      content.appendChild(bubbleDiv);
-      content.appendChild(timeP);
+        const img = document.createElement("img");
+        img.src = isOwnMessage ? profilePicBase64 : profilePic || "";
+        img.className = "w-8 h-8 rounded-full object-cover";
+        if (img.src) msg.appendChild(img);
 
-      msg.appendChild(content);
-      chatMessages.appendChild(msg);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
+        const content = document.createElement("div");
+        const bubbleDiv = document.createElement("div");
+        bubbleDiv.className = `${bubble} px-4 py-2 rounded-lg shadow-md max-w-xs`;
+        bubbleDiv.innerHTML = `<p class="font-semibold">${name}</p><p>${text}</p>`;
 
-    sendBtn.addEventListener("click", sendMessage);
-    messageInput.addEventListener("keypress", e => {
-      if (e.key === "Enter") sendMessage();
-    });
+        const timeP = document.createElement("p");
+        timeP.className = "text-xs text-gray-400 mt-1";
+        timeP.textContent = time;
 
-    function sendMessage() {
-      const text = messageInput.value.trim();
-      if (!text) return;
-      if (!username) {
-        alert("Veuillez entrer un nom avant d'envoyer un message.");
-        return;
+        content.appendChild(bubbleDiv);
+        content.appendChild(timeP);
+
+        msg.appendChild(content);
+        chatMessages.appendChild(msg);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
       }
-      const messagesRef = ref(db, "messages");
-      push(messagesRef, {
-        name: username,
-        text,
-        timestamp: Date.now(),
-        profilePic: profilePicBase64
-      });
-      messageInput.value = "";
-    }
 
-    // Déconnexion
-    if (logoutBtn) {
+      sendBtn.addEventListener("click", sendMessage);
+      messageInput.addEventListener("keypress", e => {
+        if (e.key === "Enter") sendMessage();
+      });
+
+      function sendMessage() {
+        const text = messageInput.value.trim();
+        if (!text || !username) return;
+        const messagesRef = ref(db, "messages");
+        push(messagesRef, {
+          name: username,
+          text,
+          timestamp: Date.now(),
+          profilePic: profilePicBase64
+        });
+        messageInput.value = "";
+      }
+
       logoutBtn.addEventListener("click", () => {
-        localStorage.removeItem("username");
-        localStorage.removeItem("profilePic");
+        localStorage.clear();
         username = null;
         profilePicBase64 = null;
         mainApp.classList.add("hidden");
@@ -205,11 +168,9 @@
         messageInput.disabled = true;
         sendBtn.disabled = true;
         chatMessages.innerHTML = "";
+        loaded = false;
       });
-    }
 
-    // Si déjà connecté, récupérer nom et photo dans localStorage
-    window.onload = () => {
       const storedName = localStorage.getItem("username");
       const storedPic = localStorage.getItem("profilePic");
       if (storedName && storedPic) {
@@ -221,7 +182,7 @@
         sendBtn.disabled = false;
         loadMessages();
       }
-    };
+    });
   </script>
 </body>
-  </html>
+</html>
