@@ -1,45 +1,73 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-import time
-from itertools import product
-import string
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>🔐 Brute Force Challenge</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #111;
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .container {
+      background: #222;
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    }
+    input {
+      padding: 10px;
+      margin: 10px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      width: 200px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      background: #0f0;
+      color: #000;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #result {
+      margin-top: 15px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 Brute Force Challenge</h1>
+    <input type="password" id="password" placeholder="Entrez le mot de passe">
+    <br>
+    <button onclick="checkPassword()">Valider</button>
+    <p id="result"></p>
+  </div>
 
-# URL du site à brute forcer
-URL = "http://127.0.0.1:5500/index.html"  # ou ton GitHub Pages
+  <script>
+    function checkPassword() {
+      const input = document.getElementById("password").value;
+      const result = document.getElementById("result");
 
-# Setup du navigateur (sans interface)
-options = Options()
-options.add_argument("--headless")  # pour ne pas ouvrir une vraie fenêtre
-driver = webdriver.Chrome(options=options)
+      const correctPassword = "YMA"; // <- à brute forcer
 
-def generate_passwords(length):
-    chars = string.ascii_uppercase  # A-Z uniquement
-    return (''.join(p) for p in product(chars, repeat=length))
-
-found = False
-
-for pwd in generate_passwords(3):  # Teste tous les mots de passe de 3 lettres
-    driver.get(URL)
-    time.sleep(0.5)
-
-    input_box = driver.find_element(By.ID, "password")
-    input_box.send_keys(pwd)
-
-    submit = driver.find_element(By.TAG_NAME, "button")
-    submit.click()
-
-    time.sleep(0.2)
-
-    result = driver.find_element(By.ID, "result").text
-    print(f"Essai: {pwd} → {result}")
-
-    if "correct" in result.lower():
-        print(f"✅ Mot de passe trouvé : {pwd}")
-        found = True
-        break
-
-if not found:
-    print("❌ Aucun mot de passe trouvé.")
-
-driver.quit()
+      if (input === correctPassword) {
+        result.innerText = "✅ Mot de passe correct !";
+        result.style.color = "lime";
+      } else {
+        result.innerText = "❌ Mot de passe incorrect.";
+        result.style.color = "red";
+      }
+    }
+  </script>
+</body>
+</html>
